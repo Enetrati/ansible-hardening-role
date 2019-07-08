@@ -1,0 +1,104 @@
+---
+#- selinux:
+#    policy: targeted
+#    state: permissive
+
+- name: Install AIDE
+  apt:
+    name: aide
+    state: present
+    #update_cache: no
+
+- stat: path=/var/lib/aide/aide.db
+  register: stat_result
+
+- name: Initialize AIDE
+  command: aideinit
+  when: stat_result.stat.exists == False
+
+- name: Hardening of kernel(1)
+  copy:
+    src: files/10-sysctl.conf
+    dest: /etc/sysctl.d/10-sysctl.conf
+    mode: 0644
+
+- name: Hardening of kernel(2)
+  copy:
+    src: files/80-sysctl.conf
+    dest: /etc/sysctl.d/80-sysctl.conf
+    mode: 0644
+
+- name: Hardening of kernel(3)
+  copy:
+    src: files/90-sysctl.conf
+    dest: /etc/sysctl.d/90-sysctl.conf
+    mode: 0644
+
+- name: Reload kernel
+  shell: sysctl --system
+
+- name: Disable install DCCP
+  copy:
+    dest: /etc/modprobe.d/dccp.conf
+    content: |
+      install dccp /bin/false
+
+- name: Disable install TIPC
+  copy:
+    dest: /etc/modprobe.d/tipc.conf
+    content: |
+      install tipc /bin/false
+
+- name: Disable install SCTP
+  copy:
+    dest: /etc/modprobe.d/sctp.conf
+    content: |
+      install sctp /bin/false
+
+- name: Disable install RDS
+  copy:
+    dest: /etc/modprobe.d/rds.conf
+    content: |
+      install rds /bin/false
+
+- name: Disable install CramFS filesystem
+  copy:
+    dest: /etc/modprobe.d/cramfs.conf
+    content: |
+      install cramfs /bin/false
+
+- name: Disable install FreeVXFS filesystem
+  copy:
+    dest: /etc/modprobe.d/freevxfs.conf
+    content: |
+      install freevxfs /bin/false
+
+- name: Disable install jffs2 filesystem
+  copy:
+    dest: /etc/modprobe.d/jffs2.conf
+    content: |
+      install jffs2 /bin/false
+
+- name: Disable install HFS filesystem
+  copy:
+    dest: /etc/modprobe.d/hfs.conf
+    content: |
+      install hfs /bin/false
+
+- name: Disable install HFS+ filesystem
+  copy:
+    dest: /etc/modprobe.d/hfsplus.conf
+    content: |
+      install hfsplus /bin/false
+
+- name: Disable install SquashFS filesystem
+  copy:
+    dest: /etc/modprobe.d/squashfs.conf
+    content: |
+      install squashfs /bin/false
+
+- name: Disable install UDF filesystem
+  copy:
+    dest: /etc/modprobe.d/udf.conf
+    content: |
+      install udf /bin/false
