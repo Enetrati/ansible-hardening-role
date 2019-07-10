@@ -85,14 +85,14 @@
     state: absent
     update_cache: no
 
+- name: Change default user context
+  shell semanage login -m -S targeted -s "sysadm_u" -r s0 __default__
+
 - name: Enable SSH login only with sysadm accounts
   shell: setsebool -P ssh_sysadm_login 1
 
-- name: Disable unconfined accounts
+- name: Disable login from unconfined accounts
   shell: setsebool -P unconfined_login 0
 
-- name: Disable for xguests the possibility to execute
-  shell: setsebool -P xguest_exec_content 0
-
-- name: Disable for xguests the possibility to execute
+- name: Disable possibilty to execute for xguests
   shell: setsebool -P xguest_exec_content 0
