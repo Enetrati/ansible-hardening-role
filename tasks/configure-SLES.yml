@@ -1,0 +1,129 @@
+---
+- name: Install PAM-pwquality
+  zypper:
+    name: libpwquality1
+    state: present
+    update_cache: no
+
+- name: Check if PAM_Tally2 already is configured
+  command: grep -qE "^auth\s+required\s+pam_tally2.so(.*)" /etc/pam.d/common-auth
+  register: tally2_result
+  ignore_errors: True
+  changed_when: False
+
+- fail:
+    msg: Checking...
+
+- name: Configure PAM_Tally2 to block logins for failed authentication on accounts.
+  lineinfile:
+    dest: "{{ item.dest }}"
+    state: present
+    line: auth    required        pam_tally2.so  audit file=/var/log/tallylog deny=6 unlock_time=604800 lock_time=900 onerr=succeed
+    insertafter: auth        sufficient    pam_unix.so
+  with_items:
+    - { dest: '/etc/pam.d/common-auth' }
+    - { dest: '/etc/pam.d/common-auth-pc' }
+    - { dest: '/etc/pam.d/common-auth.pam-config-backup' }
+  when: tally2_result.rc == 1
+
+- name: Check if Cracklib already is removed
+  command: grep -qE "^password\s+requisite\s+pam_cracklib.so" /etc/pam.d/common-password
+  register: cracklib_result
+  ignore_errors: True
+  changed_when: False
+
+- name: Exclude Cracklib in PAM
+  lineinfile:
+    path:  "{{ item }}"
+    state: absent
+    regexp: '^password\s+requisite\s+pam_cracklib.so'
+  with_items:
+    - /etc/pam.d/common-password
+    - /etc/pam.d/common-password-pc
+    - /etc/pam.d/common-password.pam-config-backup
+  when: cracklib_result.rc == 0
+
+- name: Check if pwquality already is added
+  command: grep -qE "^password\s+requisite\s+pam_pwquality.so" /etc/pam.d/common-password
+  register: pwquality_result
+  ignore_errors: True
+
+- name: Include pwquality in PAM
+  lineinfile:
+    path: "{{ item.dest }}"
+    state: present
+    insertbefore: '^password\s+required\s+pam_unix.so'
+    line: 'password        requisite       pam_pwquality.so'
+  with_items:
+    - { dest: '/etc/pam.d/common-password'}
+    - { dest: '/etc/pam.d/common-password-pc'}
+    - { dest: '/etc/pam.d/common-password.pam-config-backup'}
+  when: pwquality_result.rc == 1
+
+- name: Check if PAM_Unix already is configured
+  command: grep -qE "^password\s+required\s+pam_unix.so existing_options\sremember=24" /etc/pam.d/common-password
+  register: unix_result
+  ignore_errors: True
+
+- name: Configure PAM to prevent users from reusing passwords for 24 times
+  lineinfile:
+    path: "{{ item.dest }}"
+    line: password        required        pam_unix.so existing_options remember=24
+    insertafter: password\s+required\s+pam_unix.so.*
+    state: present
+  with_items:
+    - { dest: '/etc/pam.d/common-password' }
+    - { dest: '/etc/pam.d/common-password-pc' }
+    - { dest: '/etc/pam.d/common-password.pam-config-backup' }
+  when: unix_result.rc == 1
+
+- name: Check if empty password already are prohibited
+  command: grep -qoE "(nullok )" /etc/pam.d/common-password
+  register: null_result
+  ignore_errors: True
+
+- name: Disable empty passwords
+  replace:
+    dest: "{{ item.dest }}"
+    regexp: '( nullok )'
+    replace: '\s'
+  with_items:
+    - { dest: '/etc/pam.d/common-password' }
+    - { dest: '/etc/pam.d/common-password-pc' }
+    - { dest: '/etc/pam.d/common-password.pam-config-backup' }
+  when: null_result.rc == 0
+
+- name: Check if audit already is included in GRUB2 configuration
+  command: grep -qoE "(audit=1)" /etc/default/grub
+  register: grub_result
+  ignore_errors: True
+
+- name: Reconfigure Grub2 to start Audit at boot
+  replace:
+    dest: /etc/default/grub
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=.*)"$'
+    replace: '\1 audit=1"'
+  when: null_result.rc == 1
+
+- name: Create new GRUB2 configuration
+  command: grub2-mkconfig -o /boot/grub2/grub.cfg
+
+- name: Configure Auditd
+  copy:
+    src: files/audit.rules
+    dest: /etc/audit/rules.d/audit.rules
+    mode: 0644
+    backup: yes
+
+- name: Configure Auditd
+  copy:
+    src: files/audit.rules
+    dest: /etc/audit/audit.rules
+    mode: 0644
+    backup: yes
+
+- name: Restart Auditd
+  systemd:
+    name: auditd
+    state: started
+    enabled: yes
