@@ -1,7 +1,6 @@
 ---
-# defaults file for security
-
-pw_quality_difok: 5 
+# defaults file for pwsecurity
+pw_quality_difok: 5
 pw_quality_minlen: 9
 pw_quality_dcredit: 1
 pw_quality_ucredit: 1
@@ -12,4 +11,7 @@ pw_quality_maxrepeat: 0
 pw_quality_maxclassrepeat: 0
 pw_quality_gecoscheck: 0
 
-
+# Enable or disable fs check
+fs_check: "{{ fs_check | default(True) }}"
+acct: "{{ acct | default(True) }}"
+aide: "{{ aide | default(True) }}"
