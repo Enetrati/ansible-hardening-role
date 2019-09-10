@@ -1,0 +1,116 @@
+---
+- name: Checking partitions
+  block:
+  - name: Check tmp partition exists
+    command: grep -qE "\s/tmp\s" /etc/fstab
+    register: tmp_result
+    ignore_errors: yes
+    when: fs_check == True
+
+  - name: Check var partition exists
+    command: grep -qE "\s/var\s" /etc/fstab
+    register: var_result
+    ignore_errors: yes
+    when: fs_check
+
+  - name: Check varlog partition exists
+    command: grep -qE "\s/var/log\s" /etc/fstab
+    register: varlog_result
+    ignore_errors: yes
+    when: fs_check
+
+  - name: Check varlogaudit partition exists
+    command: grep -qE "\s/var/log/audit\s" /etc/fstab
+    register: varlogaudit_result
+    ignore_errors: yes
+    when: fs_check
+
+  - name: Check home partition exists
+    command: grep -qE "\s/home\s" /etc/fstab
+    register: home_result
+    ignore_errors: yes
+    when: fs_check
+
+  - fail:
+      msg: Check on partition availabilty. Please check the errors
+    when: tmp_result.rc == 1 or var_result.rc == 1 or varlog_result.rc == 1 or varlogaudit_result.rc == 1 or home_result.rc == 1
+  when: fs_check
+
+- name: Install and configure AIDE
+  block:
+  - name: Install AIDE
+    zypper:
+      name: aide
+      state: present
+      update_cache: yes
+
+  - stat: path=/var/lib/aide/aide.db.gz
+    register: stat_result
+
+  - name: Initialize AIDE
+    command: aide --init
+    when: stat_result.stat.exists == False
+
+  - name: Archive AIDE database
+    archive:
+      path:
+        - /var/lib/aide/aide.db.new
+      dest: /var/lib/aide/aide.db.new.gz
+      format: gz
+
+  - name: Rename database
+    command: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+    changed_when: True
+  when: enable_aide
+
+- name: Hardening of kernel(1)
+  copy:
+    src: files/10-sysctl.conf
+    dest: /etc/sysctl.d/10-sysctl.conf
+    mode: 0644
+
+- name: Hardening of kernel(2)
+  copy:
+    src: files/80-sysctl.conf
+    dest: /etc/sysctl.d/80-sysctl.conf
+    mode: 0644
+
+- name: Hardening of kernel(3)
+  copy:
+    src: files/90-sysctl.conf
+    dest: /etc/sysctl.d/90-sysctl.conf
+    mode: 0644
+
+- name: Reread kernel settings
+  command: sysctl -p
+
+- name: Install and configure ACCT
+  block:
+  - name: Install acct
+    zypper:
+      name: acct
+      state: present
+      update_cache: no
+
+  - name: Enable acct
+    systemd:
+      name: acct
+      state: started
+      enabled: yes
+  when: enable_acct
+
+- name: Disable filesystems
+  copy:
+    dest: /etc/modprobe.d/50-disabled-filesystems.conf
+    content: |
+      install udf /bin/false
+      install squashfs /bin/false
+      install hfsplus /bin/false
+      install hfs /bin/false
+      install jffs2 /bin/false
+      install freevxfs /bin/false
+      install cramfs /bin/false
+      install rds /bin/false
+      install sctp /bin/false
+      install tipc /bin/false
+      install dccp /bin/false
